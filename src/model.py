@@ -14,7 +14,6 @@ class SimpleCNN(nn.Module):
         self.bn3 = nn.BatchNorm2d(128)
         self.pool = nn.MaxPool2d(2, 2)
         
-        # Calcolo output dimension dopo 3 pool (diviso 2 tre volte = //8)
         conv_output_size = 128 * (IMAGE_SIZE // 8) * (IMAGE_SIZE // 8)
         
         self.fc1 = nn.Linear(conv_output_size, neurons_size)
