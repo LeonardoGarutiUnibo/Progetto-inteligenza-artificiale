@@ -1,6 +1,6 @@
 import torch
 from torch import nn, optim
-from .config import DEVICE, EPOCHS, LR, EARLY_STOP, SEED, NEURONS_SIZE
+from .config import DEVICE, EPOCHS, LR, EARLY_STOP, SEED, NEURONS_SIZE, BATCH_SIZE, AVG_POOL, KERNEL_SIZE, STRIDE, PADDING
 from .utils import set_seed
 from .model import SimpleCNN
 from .dataset_utils import get_loaders, save_model
@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 import itertools
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from .train_utils import compute_class_weights, get_efficientnet, plot_confusion_matrix, count_images_per_class, plot_class_distribution
 
 
 
@@ -22,86 +22,49 @@ import matplotlib.pyplot as plt
 from collections import Counter
 from .dataset_utils import get_loaders
 
-train_loader, _, _, class_names = get_loaders()
-counts = Counter()
-for _, labels in train_loader:
-    counts.update(labels.tolist())
-total = sum(counts.values())
-weights = [total / counts[i] for i in range(len(class_names))]
-class_weights = torch.FloatTensor(weights).to(DEVICE)
+def log_hparams(writer, hparams, metrics):
+    with SummaryWriter(os.path.join(writer.log_dir, "hparam_tuning")) as hp_writer:
+        hp_writer.add_hparams(hparams, metrics)
 
-criterion = nn.CrossEntropyLoss(weight=class_weights)
-
-def count_images_per_class(loader, class_names):
-    counts = Counter()
-    for _, labels in loader:
-        counts.update(labels.tolist())
-    counts_list = [counts[i] for i in range(len(class_names))]
-    return counts_list
-
-def plot_class_distribution(counts, class_names):
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(class_names, counts)
-    ax.set_xlabel("Classi")
-    ax.set_ylabel("Numero immagini")
-    ax.set_title("Distribuzione immagini per classe")
-    plt.xticks(rotation=45, ha='right')
-    fig.tight_layout()
-    return fig
-
-def plot_confusion_matrix(cm, class_names):
-    fig, ax = plt.subplots(figsize=(6, 6))
-    im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-    ax.figure.colorbar(im, ax=ax)
-    ax.set(
-        xticks=np.arange(len(class_names)),
-        yticks=np.arange(len(class_names)),
-        xticklabels=class_names,
-        yticklabels=class_names,
-        ylabel='True label',
-        xlabel='Predicted label'
-    )
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        ax.text(j, i, f"{cm[i, j]}", ha="center", va="center",
-                color="white" if cm[i, j] > thresh else "black")
-    fig.tight_layout()
-    return fig
-
-def train_model(resume=False):
-    train_loader, val_loader, _, class_names = get_loaders()
-    
-    # Calcola i pesi in base al numero di immagini per classe
+def compute_class_weights_from_loader(train_loader, class_names):
     counts = Counter()
     for _, labels in train_loader:
         counts.update(labels.tolist())
     total = sum(counts.values())
     weights = [total / counts[i] for i in range(len(class_names))]
-    class_weights = torch.FloatTensor(weights).to(DEVICE)
+    return torch.FloatTensor(weights).to(DEVICE)
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
 
-    model = SimpleCNN(neurons_size=NEURONS_SIZE).to(DEVICE)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
-    
-    if resume and os.path.exists("model_best.pt"):
-        model.load_state_dict(torch.load("model_best.pt"))
-        print("🔄 Checkpoint 'model_best.pt' caricato.")
-        
-    set_seed(SEED)
-
-    log_dir = os.path.join("runs", f"exp_{time.strftime('%Y%m%d-%H%M%S')}")
+def setup_tensorboard(log_prefix):
+    log_dir = os.path.join("runs", f"{log_prefix}_{time.strftime('%Y%m%d-%H%M%S')}")
     writer = SummaryWriter(log_dir)
-    
-    no_improve_epochs = 0
+    writer.add_hparams(
+        {
+            "lr": LR,
+            "epochs": EPOCHS,
+            "batch_size": BATCH_SIZE,
+            "early_stop": EARLY_STOP,
+            "neurons": NEURONS_SIZE,
+            "avg_pool": AVG_POOL,
+            "kernel_size": KERNEL_SIZE,
+            "stride": STRIDE,
+            "padding": PADDING
+        },
+        {
+            "hparam/accuracy": 0,
+            "hparam/loss": 0
+        }
+    )
+    return writer
+
+
+def run_training_loop(model, train_loader, val_loader, criterion, optimizer, scheduler, writer, class_names, checkpoint_path):
     best_val_loss = float('inf')
+    no_improve_epochs = 0
 
     for epoch in range(EPOCHS):
-        # Training
         model.train()
-        correct_train, total_train = 0, 0
-        total_loss = 0
+        correct_train, total_train, total_loss = 0, 0, 0
         for images, labels in train_loader:
             images, labels = images.to(DEVICE), labels.to(DEVICE)
             optimizer.zero_grad()
@@ -118,10 +81,8 @@ def train_model(resume=False):
         train_loss = total_loss / len(train_loader)
         train_acc = correct_train / total_train
 
-        # Validation
         model.eval()
-        val_loss = 0
-        correct, total = 0, 0
+        val_loss, correct, total = 0, 0, 0
         y_true, y_pred = [], []
         with torch.no_grad():
             for images, labels in val_loader:
@@ -140,8 +101,8 @@ def train_model(resume=False):
 
         scheduler.step(val_loss)
 
-        current_lr = optimizer.param_groups[0]['lr']
-        writer.add_scalar("Learning_Rate", current_lr, epoch)
+        writer.add_scalar("Learning_Rate", optimizer.param_groups[0]['lr'], epoch)
+        writer.add_scalars('losses',{"Loss/Train": train_loss, "Loss/Val": val_loss}, epoch)
         writer.add_scalar("Loss/Train", train_loss, epoch)
         writer.add_scalar("Loss/Val", val_loss, epoch)
         writer.add_scalar("Accuracy/Train", train_acc, epoch)
@@ -164,23 +125,79 @@ def train_model(resume=False):
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            save_model(model, neurons_size=NEURONS_SIZE, path="model_best.pt")
-            print("Miglior modello salvato in model_best.pt")
+            save_model(model, neurons_size=NEURONS_SIZE, path=checkpoint_path)
+            print(f"✅ Salvataggio modello migliore in {checkpoint_path}")
             no_improve_epochs = 0
         else:
             no_improve_epochs += 1
-            print(f"Nessun miglioramento in {no_improve_epochs} epoche")
 
         if no_improve_epochs >= EARLY_STOP:
-            print(f"Early stopping attivato dopo {no_improve_epochs} epoche senza miglioramento.")
+            print("⏹️ Early stopping")
             break
+    metrics = {
+        "hparam/accuracy": val_acc,
+        "hparam/loss": val_loss
+    }
+    hparams = {
+        "lr": LR,
+        "epochs": EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "early_stop": EARLY_STOP,
+        "neurons": NEURONS_SIZE,
+        "avg_pool": AVG_POOL,
+        "kernel_size": KERNEL_SIZE,
+        "stride": STRIDE,
+        "padding": PADDING
+    }
+    log_hparams(writer, hparams, metrics)
+    return model
 
-        for name, param in model.named_parameters():
-            if param.requires_grad and param.grad is not None:
-                writer.add_histogram(f"Weights/{name}", param.data.cpu(), epoch)
-                writer.add_histogram(f"Gradients/{name}", param.grad.cpu(), epoch)
 
+def train_model_simplecnn(resume=False):
+    set_seed(SEED)
+    train_loader, val_loader, _, class_names = get_loaders()
+    class_weights = compute_class_weights_from_loader(train_loader, class_names)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    model = SimpleCNN(neurons_size=NEURONS_SIZE).to(DEVICE)
+    optimizer = optim.Adam(model.parameters(), lr=LR)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
+
+    if resume and os.path.exists("model_best.pt"):
+        model.load_state_dict(torch.load("model_best.pt"))
+        print("🔄 Checkpoint 'model_best.pt' caricato.")
+
+    writer = setup_tensorboard("simplecnn")
+
+    sample_input = next(iter(train_loader))[0][:1].to(DEVICE)  # un batch con una sola immagine
+    writer.add_graph(model, sample_input)
+
+    model = run_training_loop(model, train_loader, val_loader, criterion, optimizer, scheduler, writer, class_names, "model_best.pt")
+    save_model(model, neurons_size=NEURONS_SIZE, path="model_final_simplecnn.pt")
+    
     writer.close()
-    save_model(model, neurons_size=NEURONS_SIZE, path="model_final.pt")
-    print("Modello finale salvato in model_final.pt")
+    return model, class_names
+
+
+def train_model_efficientnet(resume=False):
+    torch.cuda.empty_cache()
+    set_seed(SEED)
+    train_loader, val_loader, _, class_names = get_loaders()
+    class_weights = compute_class_weights(train_loader, len(class_names), DEVICE)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    model = get_efficientnet(num_classes=len(class_names), neurons_size=NEURONS_SIZE).to(DEVICE)
+    optimizer = optim.Adam(model.parameters(), lr=LR)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
+
+    if resume and os.path.exists("model_efficientnet.pt"):
+        model.load_state_dict(torch.load("model_efficientnet.pt"))
+        print("🔄 Checkpoint caricato.")
+
+    writer = setup_tensorboard("effnet")
+
+    sample_input = next(iter(train_loader))[0][:1].to(DEVICE)
+    writer.add_graph(model, sample_input)
+
+    model = run_training_loop(model, train_loader, val_loader, criterion, optimizer, scheduler, writer, class_names, "model_best_efficientnet.pt")
+    save_model(model, neurons_size=NEURONS_SIZE, path="model_final_efficientnet.pt")
+    writer.close()
     return model, class_names

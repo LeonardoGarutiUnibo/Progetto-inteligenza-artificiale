@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config Schema",
+  "type": "object",
+  "properties": {
+    "batch_size": { "type": "integer", "minimum": 1 },
+    "epochs": { "type": "integer", "minimum": 1 },
+    "lr": { "type": "number", "minimum": 0 },
+    "image_size": { "type": "integer", "minimum": 1 },
+    "num_classes": { "type": "integer", "minimum": 2 },
+    "early_stop": { "type": "integer", "minimum": 0 },
+    "seed": { "type": "integer" },
+    "neurons_size": { "type": "integer", "minimum": 1 },
+    "data_dir": { "type": "string" },
+    "train_dir": { "type": "string" },
+    "val_dir": { "type": "string" },
+    "test_dir": { "type": "string" },
+    "avg_pool": { "type": "boolean", "default": false },
+    "kernel_size": {"type":"integer", "minimum": 1 },
+    "stride": {"type":"integer", "minimum": 1 },
+    "padding": {"type":"integer", "minimum": 1 }
+  },
+  "required": [
+    "BATCH_SIZE", "EPOCHS", "LR", "IMAGE_SIZE", "NUM_CLASSES",
+    "EARLY_STOP", "SEED", "NEURONS_SIZE", "DATA_DIR"
+  ]
+}

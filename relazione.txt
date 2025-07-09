@@ -1,0 +1,476 @@
+Obiettivo
+Confrontare le prestazioni di una rete neurale convoluzionale semplice (SimpleCNN) ed una rete neurale avanzata (EfficientNet)
+su due varianti di dataset:
+
+I due dataset sono così strutturati:
+data
+├── training
+│   ├── adventure: 579
+│   ├── naked: 765
+│   ├── offroad: 659
+│   └── sportive: 673
+├── validation
+│   ├── adventure: 86
+│   ├── naked: 121
+│   ├── offroad: 102
+│   └── sportive: 124
+└── test
+    ├── adventure: 85
+    ├── naked: 105
+    ├── offroad: 98
+    └── sportive: 116
+
+data_noBackground
+├── training
+│   ├── adventure: 579
+│   ├── naked: 765
+│   ├── offroad: 659
+│   └── sportive: 673
+├── validation
+│   ├── adventure: 86
+│   ├── naked: 121
+│   ├── offroad: 102
+│   └── sportive: 124
+└── test
+    ├── adventure: 85
+    ├── naked: 105
+    ├── offroad: 81
+    └── sportive: 116
+
+
+Raccolta del Dataset Originale:
+Il dataset originale è stato costruito recuperando immagini da diverse fonti online.
+Ogni classe (adventure, naked, offroad, sportive) contiene immagini di moto appartenenti a differenti modelli e marche, garantendo così una buona 
+varietà e rappresentatività delle categorie.
+Inoltre, le moto sono rappresentate da molteplici angolazioni, consentendo alla rete neurale di imparare a riconoscerle indipendentemente 
+dal punto di vista da cui sono fotografate.
+Questa diversità nelle pose e negli orientamenti è fondamentale per migliorare la robustezza del modello e la sua capacità di generalizzare 
+su immagini nuove.
+
+Creazione del Dataset senza sfondo:
+Preprocessing: Rimozione dello sfondo
+Per confrontare in modo significativo le prestazioni dei modelli su immagini con e senza sfondo, è stata eseguita una fase di preprocessing 
+che ha rimosso lo sfondo da tutte le immagini del dataset originale.
+A tale scopo è stato utilizzato il modulo rembg, che impiega una rete neurale pre-addestrata per separare il soggetto principale (la moto) 
+dallo sfondo.
+Il processo ha operato ricorsivamente su tutte le sottocartelle, elaborando tutte le immagini .jpg e .jpeg e salvando il risultato in formato .png 
+(che supporta la trasparenza). Le immagini originali sono state rimosse al termine della conversione.
+L’ipotesi di partenza è che la rimozione dello sfondo possa migliorare le performance dei modelli, poiché costringe la rete a concentrarsi 
+sulle caratteristiche intrinseche della moto, riducendo l’influenza di elementi di contesto.
+
+Gli iperparametri utilizzati per l’addestramento sono definiti in un file config.json, e vengono caricati dinamicamente all’interno degli script.
+Essi regolano il comportamento del training e garantiscono coerenza tra gli esperimenti.
+Gli ipermarametri configurabili sono:
+    Batch_size:                                 Dimensione del batch, cioè quante immagini vengono elaborate insieme
+    epochs:                                     Numero massimo di epoche di addestramento
+    lr:                                         Tasso di apprendimento (learning rate)
+    image_size:                                 Dimensione delle immagini (input del modello)
+    num_classes:                                Numero di classi da classificare
+    early_stop:                                 Numero di epoche di tolleranza prima dello stop anticipato (early stopping)
+    seed:                                       Semenza per la riproducibilità dei risultati
+    neurons_size:                               Numero di neuroni nel layer fully connected (di solito prima dell’output)
+    data_dir, train_dir, val_dir, test_dir :    Directory dei dati per training, validation e test
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------------------------
+config
+{
+  "batch_size": 82,
+  "epochs": 100,
+  "lr": 0.0001,
+  "image_size": 64,
+  "num_classes": 4,
+  "early_stop": 12,
+  "seed": 42,
+  "neurons_size": 1024
+}
+
+SimpleCNN  data                                             SimpleCNN data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                    precision    recall  f1-score   support
+
+   adventure       0.55      0.81      0.66        85         adventure       0.78      0.94      0.86        85
+       naked       0.66      0.47      0.55       105             naked       0.80      0.66      0.72       105
+     offroad       0.88      0.77      0.82        98           offroad       0.88      0.83      0.85        81
+    sportive       0.69      0.72      0.70       116          sportive       0.80      0.84      0.82       116
+
+    accuracy                           0.68       404          accuracy                           0.81       387
+   macro avg       0.70      0.69      0.68       404         macro avg       0.82      0.82      0.81       387
+weighted avg       0.70      0.68      0.68       404      weighted avg       0.81      0.81      0.81       387
+
+📉 Confusion Matrix:                                    
+
+[[69  8  3  5]                                             [[80  3  1  1]
+ [30 49  4 22]                                              [11 69  6 19]
+ [12  1 75 10]                                              [ 6  3 67  5]
+ [14 16  3 83]]                                             [ 5 11  2 98]]
+
+
+EfficientNet data                                             EfficientNet data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.76      0.86      0.81        85          adventure       0.81      0.96      0.88        85
+       naked       0.72      0.68      0.70       105              naked       0.87      0.63      0.73       105
+     offroad       0.88      0.85      0.86        98            offroad       0.89      0.90      0.90        81
+    sportive       0.82      0.82      0.82       116           sportive       0.84      0.93      0.89       116
+
+    accuracy                           0.80       404           accuracy                           0.85       387
+   macro avg       0.80      0.80      0.80       404          macro avg       0.85      0.86      0.85       387
+weighted avg       0.80      0.80      0.80       404       weighted avg       0.85      0.85      0.84       387
+
+📉 Confusion Matrix:
+
+[[73  7  5  0]                                              [[ 82   1   2   0]
+ [13 71  5 16]                                               [ 15  66   6  18]
+ [ 7  3 83  5]                                               [  4   2  73   2]
+ [ 3 17  1 95]]                                              [  0   7   1 108]]
+
+In questa relazione è possibile notare che la rimozione dello sfondo porta un significativo miglioramento nell'addestramento della rete.
+I modelli si concentrano più facilmente sulle caratteristiche rilevanti del soggetto anziché essere distratti da elementi dello sfondo.
+
+Il miglioramento è più evidente nel modello più semplice (SimpleCNN), ma è presente anche nel modello avanzato (EfficientNet).
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+{
+  "batch_size": 82,
+  "epochs": 100,
+  "lr": 0.0001,
+  "image_size": 64,
+  "num_classes": 4,
+  "early_stop": 12,
+  "seed": 42,
+  "neurons_size": 2048,
+  "avg_pool":false,
+  "kernel_size": 2,
+  "stride": 2,
+  "padding": 1
+}
+
+SimpleCNN  data                                             SimpleCNN data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.61      0.85      0.71        85          adventure       0.75      0.94      0.83        85
+       naked       0.72      0.45      0.55       105              naked       0.77      0.65      0.70       105
+     offroad       0.86      0.71      0.78        98            offroad       0.84      0.80      0.82        81
+    sportive       0.67      0.81      0.73       116           sportive       0.79      0.78      0.79       116
+
+    accuracy                           0.70       404           accuracy                           0.79       387
+   macro avg       0.72      0.70      0.69       404          macro avg       0.79      0.79      0.79       387
+weighted avg       0.72      0.70      0.69       404       weighted avg       0.79      0.79      0.78       387
+
+📉 Confusion Matrix:
+
+[[72  5  6  2]                                              [[80  2  2  1]
+ [25 47  3 30]                                               [13 68  7 17]
+ [11  3 70 14]                                               [ 7  3 65  6]
+ [10 10  2 94]]                                              [ 7 15  3 91]]
+
+
+EfficientNet data                                             EfficientNet data_noBackground
+ 📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.69      0.87      0.77        85          adventure       0.88      0.94      0.91        85
+       naked       0.70      0.67      0.68       105              naked       0.88      0.68      0.76       105
+     offroad       0.88      0.82      0.85        98            offroad       0.91      0.89      0.90        81
+    sportive       0.83      0.76      0.79       116           sportive       0.80      0.94      0.87       116
+
+    accuracy                           0.77       404           accuracy                           0.86       387
+   macro avg       0.78      0.78      0.77       404          macro avg       0.87      0.86      0.86       387
+weighted avg       0.78      0.77      0.77       404       weighted avg       0.86      0.86      0.85       387
+
+📉 Confusion Matrix:
+
+[[74  6  5  0]                                              [[ 80   2   2   1]
+ [17 70  4 14]                                               [  7  71   5  22]
+ [12  2 80  4]                                               [  3   2  72   4]
+ [ 4 22  2 88]]                                              [  1   6   0 109]] 
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+{
+  "batch_size": 82,
+  "epochs": 150,
+  "lr": 0.0001,
+  "image_size": 64,
+  "num_classes": 4,
+  "early_stop": 12,
+  "seed": 42,
+  "neurons_size": 2048,
+  "avg_pool":true,
+  "kernel_size": 2,
+  "stride": 2,
+  "padding": 1
+}
+
+SimpleCNN  data                                             SimpleCNN data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.42      0.59      0.49        85          adventure       0.65      0.88      0.75        85
+       naked       0.45      0.52      0.49       105              naked       0.60      0.52      0.56       105
+     offroad       0.61      0.49      0.54        98            offroad       0.81      0.75      0.78        81
+    sportive       0.58      0.43      0.50       116           sportive       0.68      0.61      0.64       116
+
+    accuracy                           0.50       404           accuracy                           0.68       387
+   macro avg       0.52      0.51      0.50       404          macro avg       0.69      0.69      0.68       387
+weighted avg       0.52      0.50      0.50       404       weighted avg       0.68      0.68      0.67       387
+
+📉 Confusion Matrix:
+
+[[50 19 14  2]                                              [[75  4  4  2]
+ [25 55  6 19]                                                [22 55  5 23]
+ [24 11 48 15]                                                [ 8  3 61  9]
+ [19 36 11 50]]                                               [11 29  5 71]]
+
+EfficientNet data                                             EfficientNet data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.73      0.88      0.80        85          adventure       0.84      0.95      0.90        85
+       naked       0.68      0.68      0.68       105              naked       0.85      0.65      0.74       105
+     offroad       0.92      0.83      0.87        98            offroad       0.95      0.88      0.91        81
+    sportive       0.81      0.76      0.79       116           sportive       0.78      0.91      0.84       116
+
+    accuracy                           0.78       404           accuracy                           0.84       387
+   macro avg       0.78      0.79      0.78       404          macro avg       0.85      0.85      0.85       387
+weighted avg       0.79      0.78      0.78       404       weighted avg       0.85      0.84      0.84       387
+
+📉 Confusion Matrix:
+
+[[75  8  2  0]                                                [[ 81   2   1   1]
+ [17 71  2 15]                                                 [ 11  68   2  24]
+ [ 8  4 81  5]                                                 [  4   1  71   5]
+ [ 3 22  3 88]]                                                [  0   9   1 106]]
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+{
+  "batch_size": 82,
+  "epochs": 100,
+  "lr": 0.01,
+  "image_size": 100,
+  "num_classes": 4,
+  "early_stop": 12,
+  "seed": 42,
+  "neurons_size": 2048
+}
+
+SimpleCNN  data                                             SimpleCNN data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.00      0.00      0.00        85          adventure       0.61      0.71      0.66        85
+       naked       0.38      0.58      0.46       105              naked       0.60      0.48      0.53       105
+     offroad       0.67      0.78      0.72        98            offroad       0.84      0.79      0.82        81
+    sportive       0.34      0.36      0.35       116           sportive       0.71      0.79      0.75       116
+
+    accuracy                           0.44       404           accuracy                           0.69       387
+   macro avg       0.35      0.43      0.38       404          macro avg       0.69      0.69      0.69       387
+weighted avg       0.36      0.44      0.40       404       weighted avg       0.69      0.69      0.68       387
+
+📉 Confusion Matrix:
+
+[[ 0 45 12 28]                                              [[60 17  5  3]
+ [ 0 61  9 35]                                               [23 50  5 27]
+ [ 4  1 76 17]                                               [ 9  1 64  7]
+ [ 4 54 16 42]]                                              [ 6 16  2 92]]
+
+
+EfficientNet data                                             EfficientNet data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.89      0.95      0.92        85          adventure       0.90      0.99      0.94        85
+       naked       0.95      0.85      0.89       105              naked       0.89      0.89      0.89       105
+     offroad       0.94      0.92      0.93        98            offroad       1.00      0.88      0.93        81
+    sportive       0.90      0.96      0.93       116           sportive       0.90      0.92      0.91       116
+
+    accuracy                           0.92       404           accuracy                           0.92       387
+   macro avg       0.92      0.92      0.92       404          macro avg       0.92      0.92      0.92       387
+weighted avg       0.92      0.92      0.92       404       weighted avg       0.92      0.92      0.92       387
+
+📉 Confusion Matrix:
+
+[[ 81   2   2   0]                                          [[ 84   1   0   0]
+ [  7  89   2   7]                                           [  4  93   0   8]
+ [  2   1  90   5]                                           [  3   3  71   4]
+ [  1   2   2 111]]                                          [  2   7   0 107]]
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+{
+  "batch_size": 64,
+  "epochs": 100,
+  "lr": 0.001,
+  "image_size": 100,
+  "num_classes": 4,
+  "early_stop": 12,
+  "seed": 42,
+  "neurons_size": 2048
+}
+
+SimpleCNN  data                                             SimpleCNN data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.63      0.84      0.72        85          adventure       0.88      0.96      0.92        85
+       naked       0.72      0.59      0.65       105              naked       0.96      0.87      0.91       105
+     offroad       0.92      0.78      0.84        98            offroad       0.94      0.91      0.92        98
+    sportive       0.75      0.78      0.76       116           sportive       0.92      0.96      0.94       116
+
+    accuracy                           0.74       404           accuracy                           0.92       404
+   macro avg       0.75      0.75      0.74       404          macro avg       0.92      0.92      0.92       404
+weighted avg       0.76      0.74      0.74       404       weighted avg       0.93      0.92      0.92       404
+
+📉 Confusion Matrix:
+
+[[71  8  3  3]                                              [[ 82   0   2   1]
+ [22 62  2 19]                                               [  5  91   3   6]
+ [11  2 76  9]                                               [  5   1  89   3]
+ [ 9 14  2 91]]                                              [  1   3   1 111]]
+
+
+EfficientNet data                                             EfficientNet data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.88      0.96      0.92        85          adventure       0.89      0.99      0.94        85
+       naked       0.96      0.87      0.91       105              naked       0.95      0.84      0.89       105
+     offroad       0.94      0.91      0.92        98            offroad       0.99      0.88      0.93        81
+    sportive       0.92      0.96      0.94       116           sportive       0.89      0.98      0.93       116
+
+    accuracy                           0.92       404           accuracy                           0.92       387
+   macro avg       0.92      0.92      0.92       404          macro avg       0.93      0.92      0.92       387
+weighted avg       0.93      0.92      0.92       404       weighted avg       0.93      0.92      0.92       387
+
+📉 Confusion Matrix:
+
+[[ 82   0   2   1]                                          [[ 84   1   0   0]
+ [  5  91   3   6]                                           [  5  88   1  11]
+ [  5   1  89   3]                                           [  4   3  71   3]
+ [  1   3   1 111]]                                          [  1   1   0 114]]
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+{
+  "batch_size": 64,
+  "epochs": 150,
+  "lr": 0.001,
+  "image_size": 64,
+  "num_classes": 4,
+  "early_stop": 12,
+  "seed": 42,
+  "neurons_size": 1024,
+  "avg_pool":true,
+  "kernel_size": 2,
+  "stride": 2,
+  "padding": 1
+}
+
+SimpleCNN  data                                             SimpleCNN data_noBackground
+📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.44      0.58      0.50        85          adventure       0.74      0.94      0.83        85
+       naked       0.52      0.47      0.49       105              naked       0.73      0.62      0.67       105
+     offroad       0.62      0.61      0.62        98            offroad       0.92      0.85      0.88        81
+    sportive       0.59      0.52      0.55       116           sportive       0.77      0.77      0.77       116
+
+    accuracy                           0.54       404           accuracy                           0.78       387
+   macro avg       0.54      0.54      0.54       404          macro avg       0.79      0.79      0.79       387
+weighted avg       0.55      0.54      0.54       404       weighted avg       0.79      0.78      0.78       387
+
+📉 Confusion Matrix:
+
+[[49 15 18  3]                                              [[80  3  1  1]
+ [24 49  8 24]                                               [16 65  4 20]
+ [22  2 60 14]                                               [ 5  2 69  5]
+ [17 28 11 60]]                                              [ 7 19  1 89]]
+
+
+ 📊 Report di classificazione:
+
+              precision    recall  f1-score   support                     precision    recall  f1-score   support
+
+   adventure       0.76      0.95      0.84        85          adventure       0.88      0.98      0.93        85
+       naked       0.87      0.77      0.82       105              naked       0.93      0.80      0.86       105
+     offroad       0.94      0.89      0.91        98            offroad       0.96      0.88      0.92        81
+    sportive       0.93      0.89      0.91       116           sportive       0.85      0.95      0.90       116
+
+    accuracy                           0.87       404           accuracy                           0.90       387
+   macro avg       0.87      0.88      0.87       404          macro avg       0.91      0.90      0.90       387
+weighted avg       0.88      0.87      0.87       404       weighted avg       0.90      0.90      0.90       387
+
+📉 Confusion Matrix:
+
+[[ 81   0   4   0]                                          [[ 83   1   0   1]
+ [ 16  81   1   7]                                           [  5  84   3  13]
+ [  5   5  87   1]                                           [  4   1  71   5]
+ [  5   7   1 103]]                                          [  2   4   0 110]]
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+1. SimpleCNN (dataset con sfondo)
+Accuratezza finale: tra 44% e 70%, in base alla configurazione
+
+F1-score medio: ~0.68
+
+Il modello fatica in particolare nella classe naked.
+
+2. SimpleCNN (dataset senza sfondo)
+Accuratezza finale: fino a 81%
+
+F1-score medio: ~0.79-0.81
+
+Miglioramenti significativi in tutte le classi, in particolare adventure e sportive
+
+Rete più stabile e coerente
+
+3. EfficientNet (dataset con sfondo)
+Accuratezza finale: ~77-80%
+
+F1-score medio: ~0.80
+
+4. EfficientNet (dataset senza sfondo)
+Accuratezza finale: fino a 86%
+
+F1-score medio: ~0.85-0.86
+
+Ottime prestazioni su tutte le classi, miglioramenti visibili ma meno marcati rispetto a SimpleCNN
+
+
+Le matrici di confusione mostrano una netta riduzione degli errori di classificazione incrociata con la rimozione dello sfondo.
+Nel caso della rete SimpleCNN, le confusion matrix indicano che molti errori tra “naked” e “sportive” sono stati corretti una volta eliminato il background.
+
+La rimozione dello sfondo ha un impatto positivo e misurabile sulle prestazioni di classificazione.
+Il miglioramento è particolarmente evidente nei modelli più semplici, dove il rumore di fondo può disturbare la fase di apprendimento.
+Anche nel caso della rete avanzata (EfficientNet), l’effetto è positivo, anche se meno pronunciato grazie alla maggiore capacità del modello 
+di filtrare le informazioni rilevanti.
+Questi risultati confermano l’importanza del preprocessing delle immagini nel contesto della classificazione visiva, specialmente 
+quando si lavora con dataset reali e non controllati.

@@ -29,8 +29,8 @@ def get_loaders():
     test_set = datasets.ImageFolder(TEST_DIR, transform=eval_transform)
 
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
-    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=True)
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=True)
 
     return train_loader, val_loader, test_loader, train_set.classes
 

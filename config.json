@@ -1,0 +1,18 @@
+{
+  "batch_size": 82,
+  "epochs": 150,
+  "lr": 0.0001,
+  "image_size": 64,
+  "num_classes": 4,
+  "early_stop": 12,
+  "seed": 42,
+  "neurons_size": 2048,
+  "avg_pool":true,
+  "kernel_size": 2,
+  "stride": 2,
+  "padding": 1,
+  "data_dir": "./data_noBackground",
+  "train_dir": "./data_noBackground/training",
+  "val_dir": "./data_noBackground/validation",
+  "test_dir": "./data_noBackground/test"
+}
